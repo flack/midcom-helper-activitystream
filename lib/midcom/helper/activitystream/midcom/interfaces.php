@@ -48,7 +48,7 @@ class midcom_helper_activitystream_interface extends midcom_baseclasses_componen
 
         static $handled_targets = array();
         $cache_key = $activity->target . '_' . $activity->actor;
-        if (!empty($handled_targets[$cache_key]))
+        if (empty($handled_targets[$cache_key]))
         {
             $activity->application = midcom_core_context::get()->get_key(MIDCOM_CONTEXT_COMPONENT);
             $handled_targets[$cache_key] = $activity->create();

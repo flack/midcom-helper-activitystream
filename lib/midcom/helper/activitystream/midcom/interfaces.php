@@ -30,6 +30,35 @@ class midcom_helper_activitystream_interface extends midcom_baseclasses_componen
             return;
         }
 
+        if (is_a($object, 'midcom_db_member'))
+        {
+            $activity = $this->_process_member($object, $operation);
+        }
+        else
+        {
+            $activity = $this->_process_object($object, $operation);
+        }
+
+        if (!$activity->verb)
+        {
+            debug_add('Cannot generate a verb for the activity, skipping');
+            midcom::get('auth')->drop_sudo();
+            return;
+        }
+
+        static $handled_targets = array();
+        $cache_key = $activity->target . '_' . $activity->actor;
+        if (!empty($handled_targets[$cache_key]))
+        {
+            $activity->application = midcom_core_context::get()->get_key(MIDCOM_CONTEXT_COMPONENT);
+            $handled_targets[$cache_key] = $activity->create();
+        }
+
+        midcom::get('auth')->drop_sudo();
+    }
+
+    private function _process_object(midcom_core_dbaobject $object, $operation)
+    {
         $activity = new midcom_helper_activitystream_activity_dba();
         $activity->target = $object->guid;
 
@@ -41,23 +70,9 @@ class midcom_helper_activitystream_interface extends midcom_baseclasses_componen
         {
             $activity->verb = midcom_helper_activitystream_activity_dba::operation_to_verb($operation);
         }
-        if (!$activity->verb)
+        if ($object->get_rcs_message())
         {
-            debug_add('Cannot generate a verb for the activity, skipping');
-            midcom::get('auth')->drop_sudo();
-            return;
-        }
-
-        static $handled_targets = array();
-        if (isset($handled_targets["{$activity->target}_{$activity->actor}"]))
-        {
-            // We have already created an entry for this object in this request, skip
-            return;
-        }
-
-        if ($object->_rcs_message)
-        {
-            $activity->summary = $object->_rcs_message;
+            $activity->summary = $object->get_rcs_message();
         }
 
         if (midcom::get('auth')->user)
@@ -66,14 +81,45 @@ class midcom_helper_activitystream_interface extends midcom_baseclasses_componen
             $activity->actor = $actor->id;
         }
 
-        $activity->application = midcom_core_context::get()->get_key(MIDCOM_CONTEXT_COMPONENT);
+        return $activity;
+    }
 
-        if ($activity->create())
+    private function _process_member(midcom_db_member $member, $operation)
+    {
+        $activity = new midcom_helper_activitystream_activity_dba();
+        if ($operation === MIDCOM_OPERATION_DBA_DELETE)
         {
-            $handled_targets["{$activity->target}_{$activity->actor}"] = true;
+            $verb = 'http://activitystrea.ms/schema/1.0/leave';
+            $msg_self = '%s left group %s';
+            $msg_other = '%s was removed from group %s';
+        }
+        else if ($operation === MIDCOM_OPERATION_DBA_CREATE)
+        {
+            $verb = 'http://activitystrea.ms/schema/1.0/join';
+            $msg_self = '%s joined group %s';
+            $msg_other = '%s was added to group %s';
+        }
+        else
+        {
+            return $activity;
         }
 
-        midcom::get('auth')->drop_sudo();
+        $actor = midcom_db_person::get_cached($member->uid);
+        $target = midcom_db_group::get_cached($member->gid);
+        $activity->target = $target->guid;
+        $activity->actor = $actor->id;
+        $activity->verb = $verb;
+
+        if (   !empty(midcom::get('auth')->user->guid)
+            && $actor->guid == midcom::get('auth')->user->guid)
+        {
+            $activity->summary = sprintf($this->_l10n->get($msg_self, 'midcom'), $actor->name, $target->official);
+        }
+        else
+        {
+            $activity->summary = sprintf($this->_l10n->get($msg_other, 'midcom'), $actor->name, $target->official);
+        }
+        return $activity;
     }
 }
 ?>

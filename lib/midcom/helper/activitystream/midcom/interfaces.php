@@ -104,8 +104,16 @@ class midcom_helper_activitystream_interface extends midcom_baseclasses_componen
             return $activity;
         }
 
-        $actor = midcom_db_person::get_cached($member->uid);
-        $target = midcom_db_group::get_cached($member->gid);
+        try
+        {
+            $actor = midcom_db_person::get_cached($member->uid);
+            $target = midcom_db_group::get_cached($member->gid);
+        }
+        catch (midcom_error $e)
+        {
+            $e->log();
+            return $activity;
+        }
         $activity->target = $target->guid;
         $activity->actor = $actor->id;
         $activity->verb = $verb;

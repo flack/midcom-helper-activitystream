@@ -14,13 +14,10 @@
     ],
     "require": {
         "php": ">=5.3.0",
-        "openpsa/midcom": "dev-master",
-        "openpsa/installer": "dev-master"
+        "openpsa/midcom": "~9.0.0-rc.2",
+        "openpsa/installer": "~1.0.0-rc.2"
     },
     "minimum-stability": "dev",
-    "suggest": {
-        "ext-midgard2": ">=10.05.5"
-    },
     "autoload": {
         "classmap": ["lib"]
     }
